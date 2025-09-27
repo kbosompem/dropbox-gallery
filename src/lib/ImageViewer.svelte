@@ -8,10 +8,16 @@
   let currentIndex = allImages.findIndex(img => img.id === image.id);
   let isZoomed = false;
   let loading = true;
+  let isFullscreen = false;
+  let viewerElement;
 
   function handleKeydown(e) {
     if (e.key === 'Escape') {
-      onClose();
+      if (isFullscreen) {
+        exitFullscreen();
+      } else {
+        onClose();
+      }
     } else if (e.key === 'ArrowLeft') {
       navigatePrev();
     } else if (e.key === 'ArrowRight') {
@@ -19,6 +25,8 @@
     } else if (e.key === ' ') {
       e.preventDefault();
       onToggleFavorite();
+    } else if (e.key === 'f' || e.key === 'F') {
+      toggleFullscreen();
     }
   }
 
@@ -49,16 +57,79 @@
   }
 
   function handleBackdropClick(e) {
-    if (e.target === e.currentTarget) {
+    if (e.target === e.currentTarget && !isFullscreen) {
       onClose();
     }
+  }
+
+  async function toggleFullscreen() {
+    try {
+      if (!document.fullscreenElement) {
+        // Request fullscreen on the entire document
+        if (document.documentElement.requestFullscreen) {
+          await document.documentElement.requestFullscreen();
+        } else if (document.documentElement.webkitRequestFullscreen) {
+          await document.documentElement.webkitRequestFullscreen();
+        } else if (document.documentElement.mozRequestFullScreen) {
+          await document.documentElement.mozRequestFullScreen();
+        } else if (document.documentElement.msRequestFullscreen) {
+          await document.documentElement.msRequestFullscreen();
+        }
+        isFullscreen = true;
+      } else {
+        await exitFullscreen();
+      }
+    } catch (err) {
+      console.log('Fullscreen request failed:', err);
+      // Fallback: simulate fullscreen with CSS
+      isFullscreen = !isFullscreen;
+    }
+  }
+
+  async function exitFullscreen() {
+    try {
+      if (document.exitFullscreen) {
+        await document.exitFullscreen();
+      } else if (document.webkitExitFullscreen) {
+        await document.webkitExitFullscreen();
+      } else if (document.mozCancelFullScreen) {
+        await document.mozCancelFullScreen();
+      } else if (document.msExitFullscreen) {
+        await document.msExitFullscreen();
+      }
+      isFullscreen = false;
+    } catch (err) {
+      console.log('Exit fullscreen failed:', err);
+      isFullscreen = false;
+    }
+  }
+
+  // Listen for fullscreen changes
+  function handleFullscreenChange() {
+    isFullscreen = !!document.fullscreenElement;
+  }
+
+  // Bind fullscreen event listeners
+  if (typeof document !== 'undefined') {
+    document.addEventListener('fullscreenchange', handleFullscreenChange);
+    document.addEventListener('webkitfullscreenchange', handleFullscreenChange);
+    document.addEventListener('mozfullscreenchange', handleFullscreenChange);
+    document.addEventListener('MSFullscreenChange', handleFullscreenChange);
+  }
+
+  // Update image when navigating
+  $: if (allImages[currentIndex]) {
+    image = allImages[currentIndex];
+    isFavorite = onToggleFavorite ? isFavorite : false;
   }
 </script>
 
 <svelte:window on:keydown={handleKeydown} />
 
 <div
-  class="fixed inset-0 z-50 flex items-center justify-center bg-black/95 backdrop-blur-sm animate-fade-in"
+  bind:this={viewerElement}
+  class="{isFullscreen ? 'fixed inset-0 z-[9999]' : 'fixed inset-0 z-50'} flex items-center justify-center bg-black/95 backdrop-blur-sm animate-fade-in"
+  style="{isFullscreen ? 'position: fixed !important; top: 0 !important; left: 0 !important; width: 100vw !important; height: 100vh !important; z-index: 2147483647 !important;' : ''}"
   on:click={handleBackdropClick}
   role="button"
   tabindex="-1"
@@ -107,6 +178,21 @@
         {/if}
       </svg>
     </button>
+
+    <button
+      on:click={toggleFullscreen}
+      class="p-3 rounded-full bg-white/10 backdrop-blur-sm text-white hover:bg-white/20 transition-all duration-200 group"
+      aria-label="Toggle fullscreen"
+      title="Press F for fullscreen"
+    >
+      <svg class="w-6 h-6 group-hover:scale-110 transition-transform duration-200" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        {#if isFullscreen}
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+        {:else}
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 3H5a2 2 0 00-2 2v3m2 0V6a2 2 0 012-2h3m0 0h6m-6 0V3m6 0v3M3 16v3a2 2 0 002 2h3m0 0h6m-6 0v2m6-2a2 2 0 002-2v-3M3 16h3m0 0V8m0 8h8m0 0V8m0 8v3"/>
+        {/if}
+      </svg>
+    </button>
   </div>
 
   {#if currentIndex > 0}
@@ -145,14 +231,31 @@
       alt={image.name}
       on:load={handleImageLoad}
       on:click={toggleZoom}
-      class="max-w-full max-h-[85vh] object-contain rounded-lg shadow-2xl cursor-zoom-in transition-all duration-300 {isZoomed ? 'scale-150 cursor-zoom-out' : ''} {loading ? 'opacity-0' : 'opacity-100'}"
+      class="{isFullscreen ? 'max-w-[100vw] max-h-[100vh]' : 'max-w-full max-h-[85vh]'} object-contain rounded-lg shadow-2xl cursor-zoom-in transition-all duration-300 {isZoomed ? 'scale-150 cursor-zoom-out' : ''} {loading ? 'opacity-0' : 'opacity-100'}"
+      style="{isFullscreen ? 'max-width: 100vw !important; max-height: 100vh !important;' : ''}"
     />
   </div>
 
-  <div class="absolute bottom-4 left-1/2 -translate-x-1/2 bg-white/10 backdrop-blur-sm rounded-full px-4 py-2 text-white">
-    <p class="text-sm font-medium">
-      {image.name} • {currentIndex + 1} / {allImages.length}
-    </p>
+  <div class="absolute bottom-4 left-1/2 -translate-x-1/2 flex flex-col items-center gap-2">
+    <div class="flex gap-1">
+      {#each allImages as _, i}
+        <button
+          on:click={() => {
+            currentIndex = i;
+            image = allImages[i];
+            loading = true;
+            isZoomed = false;
+          }}
+          class="w-2 h-2 rounded-full transition-all duration-200 {i === currentIndex ? 'bg-white w-8' : 'bg-white/40 hover:bg-white/60'}"
+          aria-label="Go to image {i + 1}"
+        />
+      {/each}
+    </div>
+    <div class="bg-white/10 backdrop-blur-sm rounded-full px-4 py-2 text-white">
+      <p class="text-sm font-medium">
+        {image.name} • {currentIndex + 1} / {allImages.length}
+      </p>
+    </div>
   </div>
 </div>
 

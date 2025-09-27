@@ -1,0 +1,254 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dropbox Gallery</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            background: #000;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+            overflow: hidden;
+            height: 100vh;
+            width: 100vw;
+        }
+
+        .gallery-container {
+            position: relative;
+            width: 100vw;
+            height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: rgba(0, 0, 0, 0.95);
+        }
+
+        .gallery-control-btn {
+            position: absolute;
+            padding: 12px;
+            border-radius: 50%;
+            background: rgba(255, 255, 255, 0.1);
+            backdrop-filter: blur(10px);
+            border: none;
+            color: white;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            z-index: 10;
+        }
+
+        .gallery-control-btn:hover {
+            background: rgba(255, 255, 255, 0.2);
+            transform: scale(1.1);
+        }
+
+        .gallery-close {
+            top: 20px;
+            right: 20px;
+        }
+
+        .gallery-top-controls {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            display: flex;
+            gap: 10px;
+            z-index: 10;
+        }
+
+        .gallery-nav-btn {
+            position: absolute;
+            top: 50%;
+            transform: translateY(-50%);
+            padding: 12px;
+            border-radius: 50%;
+            background: rgba(255, 255, 255, 0.1);
+            backdrop-filter: blur(10px);
+            border: none;
+            color: white;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            z-index: 10;
+        }
+
+        .gallery-nav-btn:hover {
+            background: rgba(255, 255, 255, 0.2);
+            transform: translateY(-50%) scale(1.1);
+        }
+
+        .gallery-prev {
+            left: 20px;
+        }
+
+        .gallery-next {
+            right: 20px;
+        }
+
+        .gallery-image-container {
+            max-width: 95vw;
+            max-height: 95vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .gallery-main-image {
+            max-width: 100%;
+            max-height: 100%;
+            object-fit: contain;
+            border-radius: 8px;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
+            cursor: zoom-in;
+            transition: all 0.3s ease;
+        }
+
+        .gallery-main-image.zoomed {
+            cursor: zoom-out;
+            transform: scale(1.5);
+        }
+
+        .gallery-bottom-info {
+            position: absolute;
+            bottom: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .gallery-dots {
+            display: flex;
+            gap: 8px;
+            max-width: 80vw;
+            overflow-x: auto;
+            padding: 10px;
+        }
+
+        .gallery-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: rgba(255, 255, 255, 0.4);
+            border: none;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            flex-shrink: 0;
+        }
+
+        .gallery-dot:hover {
+            background: rgba(255, 255, 255, 0.6);
+        }
+
+        .gallery-dot.active {
+            width: 32px;
+            border-radius: 16px;
+            background: white;
+        }
+
+        .gallery-info-text {
+            background: rgba(255, 255, 255, 0.1);
+            backdrop-filter: blur(10px);
+            padding: 8px 16px;
+            border-radius: 20px;
+            color: white;
+            font-size: 14px;
+            font-weight: 500;
+            white-space: nowrap;
+        }
+
+        .loading {
+            color: white;
+            font-size: 18px;
+            text-align: center;
+        }
+
+        .error {
+            color: #ff6b6b;
+            font-size: 18px;
+            text-align: center;
+        }
+
+        /* Scrollbar styling for dots */
+        .gallery-dots::-webkit-scrollbar {
+            height: 4px;
+        }
+
+        .gallery-dots::-webkit-scrollbar-track {
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 2px;
+        }
+
+        .gallery-dots::-webkit-scrollbar-thumb {
+            background: rgba(255, 255, 255, 0.3);
+            border-radius: 2px;
+        }
+
+        .gallery-dots::-webkit-scrollbar-thumb:hover {
+            background: rgba(255, 255, 255, 0.5);
+        }
+    </style>
+</head>
+<body>
+    <div class="gallery-container">
+        <div id="loading" class="loading">Loading gallery...</div>
+        <div id="error" class="error" style="display: none;">Failed to load gallery</div>
+
+        <!-- Close button -->
+        <button id="gallery-close-btn" class="gallery-control-btn gallery-close" style="display: none;">
+            <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" width="24" height="24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+            </svg>
+        </button>
+
+        <!-- Top controls -->
+        <div class="gallery-top-controls" style="display: none;">
+            <button id="gallery-favorite-btn" class="gallery-control-btn" title="Toggle favorite">
+                <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" width="24" height="24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z"/>
+                </svg>
+            </button>
+
+            <button id="gallery-fullscreen-btn" class="gallery-control-btn" title="Toggle fullscreen (F11)">
+                <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" width="24" height="24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 3H5a2 2 0 00-2 2v3m2 0V6a2 2 0 012-2h3m0 0h6m-6 0V3m6 0v3M3 16v3a2 2 0 002 2h3m0 0h6m-6 0v2m6-2a2 2 0 002-2v-3M3 16h3m0 0V8m0 8h8m0 0V8m0 8v3"/>
+                </svg>
+            </button>
+        </div>
+
+        <!-- Navigation -->
+        <button id="gallery-prev-btn" class="gallery-nav-btn gallery-prev" style="display: none;">
+            <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" width="24" height="24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"/>
+            </svg>
+        </button>
+
+        <button id="gallery-next-btn" class="gallery-nav-btn gallery-next" style="display: none;">
+            <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" width="24" height="24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/>
+            </svg>
+        </button>
+
+        <!-- Main image -->
+        <div id="gallery-image-container" class="gallery-image-container" style="display: none;">
+            <img id="gallery-main-image" class="gallery-main-image" />
+        </div>
+
+        <!-- Bottom info and dots -->
+        <div id="gallery-bottom-info" class="gallery-bottom-info" style="display: none;">
+            <div id="gallery-dots" class="gallery-dots"></div>
+            <div class="gallery-info-text">
+                <p id="gallery-image-info"></p>
+            </div>
+        </div>
+    </div>
+
+    <script src="gallery.js"></script>
+</body>
+</html>

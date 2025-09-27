@@ -10,28 +10,52 @@
   let showFavoritesOnly = false;
   let searchQuery = '';
 
+  let currentFolderUrl = '';
+
   onMount(async () => {
-    const stored = await chrome.storage.local.get(['galleryImages', 'folderName', 'favorites']);
-    if (stored.galleryImages) {
-      images = stored.galleryImages;
-      folderName = stored.folderName || 'Dropbox Gallery';
-    }
+    const stored = await chrome.storage.local.get(['galleryImages', 'folderName', 'favorites', 'currentFolder']);
     if (stored.favorites) {
       favorites = new Set(stored.favorites);
     }
 
+    // Get current tab info
     chrome.tabs.query({ active: true, currentWindow: true }, async (tabs) => {
       if (tabs[0]?.url?.includes('dropbox.com')) {
-        chrome.tabs.sendMessage(tabs[0].id, { action: 'getImages' }, (response) => {
-          if (response?.images?.length > 0) {
-            images = response.images;
-            folderName = tabs[0].title;
-            chrome.storage.local.set({
-              galleryImages: images,
-              folderName: folderName
-            });
+        const newFolderUrl = tabs[0].url;
+
+        // Check if we're in a different folder
+        if (newFolderUrl !== stored.currentFolder) {
+          // Clear previous images when switching folders
+          images = [];
+          selectedImage = null;
+
+          // Fetch new images
+          chrome.tabs.sendMessage(tabs[0].id, { action: 'getImages' }, (response) => {
+            if (response?.images?.length > 0) {
+              images = response.images;
+              folderName = tabs[0].title;
+              currentFolderUrl = newFolderUrl;
+              chrome.storage.local.set({
+                galleryImages: images,
+                folderName: folderName,
+                currentFolder: newFolderUrl
+              });
+            }
+          });
+        } else {
+          // Same folder, load cached images
+          if (stored.galleryImages) {
+            images = stored.galleryImages;
+            folderName = stored.folderName || 'Dropbox Gallery';
+            currentFolderUrl = stored.currentFolder || '';
           }
-        });
+        }
+      } else {
+        // Not on Dropbox, load any cached images
+        if (stored.galleryImages) {
+          images = stored.galleryImages;
+          folderName = stored.folderName || 'Dropbox Gallery';
+        }
       }
     });
   });
@@ -53,6 +77,16 @@
   function closeViewer() {
     selectedImage = null;
   }
+
+  // Listen for folder changes
+  chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
+    if (changeInfo.url && tab.url?.includes('dropbox.com') && tab.url !== currentFolderUrl) {
+      // Folder changed, clear images
+      images = [];
+      selectedImage = null;
+      currentFolderUrl = tab.url;
+    }
+  });
 
   $: filteredImages = images.filter(img => {
     const matchesSearch = !searchQuery ||
