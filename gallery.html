@@ -1,0 +1,552 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dropbox Gallery</title>
+    <link rel="icon" type="image/svg+xml" href="icon.svg">
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            background: #000;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+            overflow: hidden;
+            height: 100vh;
+            width: 100vw;
+        }
+
+        .gallery-container {
+            position: relative;
+            width: 100vw;
+            height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: rgba(0, 0, 0, 0.95);
+        }
+
+        .gallery-control-btn {
+            position: absolute;
+            padding: 12px;
+            border-radius: 50%;
+            background: rgba(255, 255, 255, 0.1);
+            backdrop-filter: blur(10px);
+            border: none;
+            color: white;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            z-index: 10;
+        }
+
+        .gallery-control-btn:hover {
+            background: rgba(255, 255, 255, 0.2);
+            transform: scale(1.1);
+        }
+
+        .gallery-control-btn:focus-visible {
+            outline: 2px solid #667eea;
+            outline-offset: 2px;
+        }
+
+        .gallery-close {
+            top: 20px;
+            right: 20px;
+        }
+
+        .gallery-top-controls {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            display: flex;
+            gap: 10px;
+            z-index: 10;
+        }
+
+        .gallery-nav-btn {
+            position: absolute;
+            top: 50%;
+            transform: translateY(-50%);
+            padding: 12px;
+            border-radius: 50%;
+            background: rgba(255, 255, 255, 0.1);
+            backdrop-filter: blur(10px);
+            border: none;
+            color: white;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            z-index: 10;
+        }
+
+        .gallery-nav-btn:hover:not(:disabled) {
+            background: rgba(255, 255, 255, 0.2);
+            transform: translateY(-50%) scale(1.1);
+        }
+
+        .gallery-nav-btn:disabled {
+            opacity: 0.3;
+            cursor: default;
+        }
+
+        .gallery-nav-btn:focus-visible {
+            outline: 2px solid #667eea;
+            outline-offset: 2px;
+        }
+
+        .gallery-prev {
+            left: 20px;
+        }
+
+        .gallery-next {
+            right: 20px;
+        }
+
+        .gallery-image-container {
+            max-width: 95vw;
+            max-height: 95vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            position: relative;
+        }
+
+        .gallery-main-image {
+            max-width: 100%;
+            max-height: 100%;
+            object-fit: contain;
+            border-radius: 8px;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
+            cursor: zoom-in;
+            transition: all 0.3s ease;
+        }
+
+        .gallery-main-image.zoomed {
+            cursor: zoom-out;
+            transform: scale(1.5);
+        }
+
+        .gallery-main-image.loading-img {
+            opacity: 0.3;
+        }
+
+        .gallery-image-error {
+            display: none;
+            flex-direction: column;
+            align-items: center;
+            gap: 16px;
+            color: rgba(255, 255, 255, 0.6);
+            padding: 40px;
+        }
+
+        .gallery-image-error svg {
+            opacity: 0.5;
+        }
+
+        .gallery-image-error p {
+            font-size: 16px;
+        }
+
+        .gallery-retry-btn {
+            padding: 8px 20px;
+            border-radius: 8px;
+            background: rgba(255, 255, 255, 0.15);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            color: white;
+            cursor: pointer;
+            font-size: 14px;
+            transition: background 0.2s;
+        }
+
+        .gallery-retry-btn:hover {
+            background: rgba(255, 255, 255, 0.25);
+        }
+
+        .gallery-bottom-info {
+            position: absolute;
+            bottom: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .gallery-dots {
+            display: flex;
+            gap: 8px;
+            max-width: 80vw;
+            overflow-x: auto;
+            padding: 10px;
+        }
+
+        .gallery-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: rgba(255, 255, 255, 0.5);
+            border: none;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            flex-shrink: 0;
+        }
+
+        .gallery-dot:hover {
+            background: rgba(255, 255, 255, 0.75);
+        }
+
+        .gallery-dot:focus-visible {
+            outline: 2px solid #667eea;
+            outline-offset: 2px;
+        }
+
+        .gallery-dot.active {
+            width: 32px;
+            border-radius: 16px;
+            background: white;
+        }
+
+        .gallery-info-text {
+            background: rgba(255, 255, 255, 0.1);
+            backdrop-filter: blur(10px);
+            padding: 8px 16px;
+            border-radius: 20px;
+            color: white;
+            font-size: 14px;
+            font-weight: 500;
+            white-space: nowrap;
+        }
+
+        /* Loading spinner */
+        .loading {
+            color: white;
+            font-size: 18px;
+            text-align: center;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 16px;
+        }
+
+        .loading-spinner {
+            width: 40px;
+            height: 40px;
+            border: 3px solid rgba(255, 255, 255, 0.2);
+            border-top-color: white;
+            border-radius: 50%;
+            animation: spin 0.8s linear infinite;
+        }
+
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+
+        /* Error state */
+        .error {
+            color: #ff6b6b;
+            font-size: 18px;
+            text-align: center;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .error-detail {
+            color: rgba(255, 255, 255, 0.5);
+            font-size: 14px;
+        }
+
+        /* Toast notification */
+        .toast-container {
+            position: fixed;
+            top: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            z-index: 10000;
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+            pointer-events: none;
+        }
+
+        .toast {
+            padding: 10px 20px;
+            border-radius: 8px;
+            color: white;
+            font-size: 14px;
+            font-weight: 500;
+            backdrop-filter: blur(10px);
+            opacity: 0;
+            transform: translateY(-10px);
+            animation: toastIn 0.3s ease forwards;
+            pointer-events: auto;
+        }
+
+        .toast.toast-info {
+            background: rgba(102, 126, 234, 0.9);
+        }
+
+        .toast.toast-error {
+            background: rgba(239, 68, 68, 0.9);
+        }
+
+        .toast.toast-out {
+            animation: toastOut 0.3s ease forwards;
+        }
+
+        @keyframes toastIn {
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        @keyframes toastOut {
+            from { opacity: 1; transform: translateY(0); }
+            to { opacity: 0; transform: translateY(-10px); }
+        }
+
+        /* Zoom indicator badge */
+        .zoom-indicator {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            background: rgba(0, 0, 0, 0.7);
+            color: white;
+            padding: 4px 10px;
+            border-radius: 12px;
+            font-size: 12px;
+            font-weight: 500;
+            opacity: 0;
+            transition: opacity 0.2s;
+            pointer-events: none;
+        }
+
+        .zoom-indicator.visible {
+            opacity: 1;
+        }
+
+        /* Help modal */
+        .help-modal-overlay {
+            position: fixed;
+            inset: 0;
+            background: rgba(0, 0, 0, 0.8);
+            display: none;
+            align-items: center;
+            justify-content: center;
+            z-index: 10001;
+        }
+
+        .help-modal-overlay.visible {
+            display: flex;
+        }
+
+        .help-modal {
+            background: #1a1a2e;
+            border: 1px solid rgba(255, 255, 255, 0.15);
+            border-radius: 16px;
+            padding: 32px;
+            max-width: 420px;
+            width: 90vw;
+            color: white;
+        }
+
+        .help-modal h2 {
+            font-size: 20px;
+            font-weight: 600;
+            margin-bottom: 20px;
+        }
+
+        .help-modal-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 8px 0;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+        }
+
+        .help-modal-row:last-child {
+            border-bottom: none;
+        }
+
+        .help-key {
+            display: inline-block;
+            background: rgba(255, 255, 255, 0.12);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            border-radius: 6px;
+            padding: 3px 10px;
+            font-size: 13px;
+            font-family: monospace;
+            min-width: 32px;
+            text-align: center;
+        }
+
+        .help-desc {
+            color: rgba(255, 255, 255, 0.7);
+            font-size: 14px;
+        }
+
+        .help-close-hint {
+            text-align: center;
+            margin-top: 16px;
+            color: rgba(255, 255, 255, 0.4);
+            font-size: 13px;
+        }
+
+        /* Scrollbar styling for dots */
+        .gallery-dots::-webkit-scrollbar {
+            height: 4px;
+        }
+
+        .gallery-dots::-webkit-scrollbar-track {
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 2px;
+        }
+
+        .gallery-dots::-webkit-scrollbar-thumb {
+            background: rgba(255, 255, 255, 0.3);
+            border-radius: 2px;
+        }
+
+        .gallery-dots::-webkit-scrollbar-thumb:hover {
+            background: rgba(255, 255, 255, 0.5);
+        }
+
+        /* Image loading spinner overlay */
+        .image-loading-overlay {
+            position: absolute;
+            inset: 0;
+            display: none;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .image-loading-overlay.visible {
+            display: flex;
+        }
+    </style>
+</head>
+<body>
+    <div class="gallery-container">
+        <div id="loading" class="loading">
+            <div class="loading-spinner"></div>
+            <span>Loading gallery...</span>
+        </div>
+        <div id="error" class="error" style="display: none;">
+            <svg width="48" height="48" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4.5c-.77-.833-2.694-.833-3.464 0L3.34 16.5c-.77.833.192 2.5 1.732 2.5z"/>
+            </svg>
+            <span id="error-message">Failed to load gallery</span>
+            <span id="error-detail" class="error-detail"></span>
+        </div>
+
+        <!-- Close button -->
+        <button id="gallery-close-btn" class="gallery-control-btn gallery-close" style="display: none;" aria-label="Close gallery">
+            <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" width="24" height="24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+            </svg>
+        </button>
+
+        <!-- Top controls -->
+        <div class="gallery-top-controls" style="display: none;">
+            <button id="gallery-favorite-btn" class="gallery-control-btn" title="Toggle favorite (Space)" aria-label="Toggle favorite">
+                <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" width="24" height="24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z"/>
+                </svg>
+            </button>
+
+            <button id="gallery-fullscreen-btn" class="gallery-control-btn" title="Toggle fullscreen (F)" aria-label="Toggle fullscreen">
+                <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" width="24" height="24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 3H5a2 2 0 00-2 2v3m2 0V6a2 2 0 012-2h3m0 0h6m-6 0V3m6 0v3M3 16v3a2 2 0 002 2h3m0 0h6m-6 0v2m6-2a2 2 0 002-2v-3M3 16h3m0 0V8m0 8h8m0 0V8m0 8v3"/>
+                </svg>
+            </button>
+
+            <button id="gallery-help-btn" class="gallery-control-btn" title="Keyboard shortcuts (?)" aria-label="Show keyboard shortcuts">
+                <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" width="24" height="24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8.228 9c.549-1.165 2.03-2 3.772-2 2.21 0 4 1.343 4 3 0 1.4-1.278 2.575-3.006 2.907-.542.104-.994.54-.994 1.093m0 3h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
+                </svg>
+            </button>
+        </div>
+
+        <!-- Navigation -->
+        <button id="gallery-prev-btn" class="gallery-nav-btn gallery-prev" style="display: none;" aria-label="Previous image">
+            <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" width="24" height="24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"/>
+            </svg>
+        </button>
+
+        <button id="gallery-next-btn" class="gallery-nav-btn gallery-next" style="display: none;" aria-label="Next image">
+            <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" width="24" height="24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/>
+            </svg>
+        </button>
+
+        <!-- Main image -->
+        <div id="gallery-image-container" class="gallery-image-container" style="display: none;">
+            <img id="gallery-main-image" class="gallery-main-image" />
+            <div id="image-loading" class="image-loading-overlay">
+                <div class="loading-spinner"></div>
+            </div>
+            <div id="zoom-indicator" class="zoom-indicator">Zoomed</div>
+            <div id="gallery-image-error" class="gallery-image-error">
+                <svg width="64" height="64" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"/>
+                </svg>
+                <p>Failed to load image</p>
+                <button class="gallery-retry-btn" id="gallery-retry-btn">Retry</button>
+            </div>
+        </div>
+
+        <!-- Bottom info and dots -->
+        <div id="gallery-bottom-info" class="gallery-bottom-info" style="display: none;">
+            <div id="gallery-dots" class="gallery-dots" role="tablist" aria-label="Image navigation"></div>
+            <div class="gallery-info-text">
+                <p id="gallery-image-info"></p>
+            </div>
+        </div>
+    </div>
+
+    <!-- Toast container -->
+    <div id="toast-container" class="toast-container"></div>
+
+    <!-- Help modal -->
+    <div id="help-modal" class="help-modal-overlay" role="dialog" aria-label="Keyboard shortcuts">
+        <div class="help-modal">
+            <h2>Keyboard Shortcuts</h2>
+            <div class="help-modal-row">
+                <span class="help-desc">Previous image</span>
+                <span class="help-key">&larr;</span>
+            </div>
+            <div class="help-modal-row">
+                <span class="help-desc">Next image</span>
+                <span class="help-key">&rarr;</span>
+            </div>
+            <div class="help-modal-row">
+                <span class="help-desc">Toggle favorite</span>
+                <span class="help-key">Space</span>
+            </div>
+            <div class="help-modal-row">
+                <span class="help-desc">Toggle fullscreen</span>
+                <span class="help-key">F</span>
+            </div>
+            <div class="help-modal-row">
+                <span class="help-desc">Toggle zoom</span>
+                <span class="help-key">Click</span>
+            </div>
+            <div class="help-modal-row">
+                <span class="help-desc">Close gallery</span>
+                <span class="help-key">Esc</span>
+            </div>
+            <div class="help-modal-row">
+                <span class="help-desc">Show this help</span>
+                <span class="help-key">?</span>
+            </div>
+            <p class="help-close-hint">Press Esc or ? to close</p>
+        </div>
+    </div>
+
+    <script src="gallery.js"></script>
+</body>
+</html>

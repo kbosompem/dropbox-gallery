@@ -1,0 +1,193 @@
+#dropbox-gallery-overlay {
+  position: fixed !important;
+  top: 0 !important;
+  left: 0 !important;
+  width: 100vw !important;
+  height: 100vh !important;
+  z-index: 2147483647 !important;
+  background: rgba(0, 0, 0, 0.95) !important;
+  backdrop-filter: blur(10px) !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  animation: galleryFadeIn 0.3s ease-out !important;
+}
+
+.gallery-backdrop {
+  position: relative !important;
+  width: 100% !important;
+  height: 100% !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+}
+
+.gallery-control-btn {
+  position: absolute !important;
+  padding: 12px !important;
+  border-radius: 50% !important;
+  background: rgba(255, 255, 255, 0.1) !important;
+  backdrop-filter: blur(10px) !important;
+  border: none !important;
+  color: white !important;
+  cursor: pointer !important;
+  transition: all 0.3s ease !important;
+  z-index: 10 !important;
+}
+
+.gallery-control-btn:hover {
+  background: rgba(255, 255, 255, 0.2) !important;
+  transform: scale(1.1) !important;
+}
+
+.gallery-close {
+  top: 20px !important;
+  right: 20px !important;
+}
+
+.gallery-top-controls {
+  position: absolute !important;
+  top: 20px !important;
+  left: 20px !important;
+  display: flex !important;
+  gap: 10px !important;
+  z-index: 10 !important;
+}
+
+.gallery-nav-btn {
+  position: absolute !important;
+  top: 50% !important;
+  transform: translateY(-50%) !important;
+  padding: 12px !important;
+  border-radius: 50% !important;
+  background: rgba(255, 255, 255, 0.1) !important;
+  backdrop-filter: blur(10px) !important;
+  border: none !important;
+  color: white !important;
+  cursor: pointer !important;
+  transition: all 0.3s ease !important;
+  z-index: 10 !important;
+}
+
+.gallery-nav-btn:hover {
+  background: rgba(255, 255, 255, 0.2) !important;
+  transform: translateY(-50%) scale(1.1) !important;
+}
+
+.gallery-prev {
+  left: 20px !important;
+}
+
+.gallery-next {
+  right: 20px !important;
+}
+
+.gallery-image-container {
+  max-width: 90vw !important;
+  max-height: 90vh !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+}
+
+.gallery-main-image {
+  max-width: 100% !important;
+  max-height: 100% !important;
+  object-fit: contain !important;
+  border-radius: 8px !important;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5) !important;
+  cursor: zoom-in !important;
+  transition: all 0.3s ease !important;
+}
+
+.gallery-bottom-info {
+  position: absolute !important;
+  bottom: 20px !important;
+  left: 50% !important;
+  transform: translateX(-50%) !important;
+  display: flex !important;
+  flex-direction: column !important;
+  align-items: center !important;
+  gap: 10px !important;
+}
+
+.gallery-dots {
+  display: flex !important;
+  gap: 8px !important;
+  max-width: 80vw !important;
+  overflow-x: auto !important;
+  padding: 10px !important;
+}
+
+.gallery-dot {
+  width: 8px !important;
+  height: 8px !important;
+  border-radius: 50% !important;
+  background: rgba(255, 255, 255, 0.4) !important;
+  border: none !important;
+  cursor: pointer !important;
+  transition: all 0.3s ease !important;
+  flex-shrink: 0 !important;
+}
+
+.gallery-dot:hover {
+  background: rgba(255, 255, 255, 0.6) !important;
+}
+
+.gallery-dot.active {
+  width: 32px !important;
+  border-radius: 16px !important;
+  background: white !important;
+}
+
+.gallery-info-text {
+  background: rgba(255, 255, 255, 0.1) !important;
+  backdrop-filter: blur(10px) !important;
+  padding: 8px 16px !important;
+  border-radius: 20px !important;
+  color: white !important;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif !important;
+  font-size: 14px !important;
+  font-weight: 500 !important;
+  white-space: nowrap !important;
+}
+
+@keyframes galleryFadeIn {
+  from {
+    opacity: 0 !important;
+    transform: scale(0.9) !important;
+  }
+  to {
+    opacity: 1 !important;
+    transform: scale(1) !important;
+  }
+}
+
+/* Fullscreen styles */
+#dropbox-gallery-overlay:fullscreen {
+  background: rgba(0, 0, 0, 1) !important;
+}
+
+#dropbox-gallery-overlay:fullscreen .gallery-image-container {
+  max-width: 100vw !important;
+  max-height: 100vh !important;
+}
+
+/* Scrollbar styling for dots */
+.gallery-dots::-webkit-scrollbar {
+  height: 4px !important;
+}
+
+.gallery-dots::-webkit-scrollbar-track {
+  background: rgba(255, 255, 255, 0.1) !important;
+  border-radius: 2px !important;
+}
+
+.gallery-dots::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.3) !important;
+  border-radius: 2px !important;
+}
+
+.gallery-dots::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.5) !important;
+}

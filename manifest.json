@@ -23,7 +23,6 @@
     {
       "matches": ["https://www.dropbox.com/*"],
       "js": ["src/content/content.js"],
-      "css": ["src/content/content.css"],
       "run_at": "document_idle"
     }
   ],
@@ -35,5 +34,11 @@
     "32": "icon-32.png",
     "48": "icon-48.png",
     "128": "icon-128.png"
-  }
+  },
+  "web_accessible_resources": [
+    {
+      "resources": ["gallery.html", "gallery.js"],
+      "matches": ["https://www.dropbox.com/*"]
+    }
+  ]
 }

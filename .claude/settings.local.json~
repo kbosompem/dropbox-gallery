@@ -2,16 +2,12 @@
   "permissions": {
     "allow": [
       "Bash(node:*)",
-      "Bash(npm:*)",
+      "Bash(npm install)",
       "Bash(git commit:*)",
       "Bash(gh repo create:*)",
       "Bash(gh auth:*)",
       "Bash(git remote set-url:*)",
-      "Bash(git push:*)",
-      "Bash(jq:*)",
-	"Bash(mkdir:*)",
-	"Bash(echo:*)",
-      "Write"
+      "Bash(git push:*)"
     ],
     "deny": [],
     "ask": []
@@ -19,11 +15,11 @@
   "hooks": {
     "PreToolUse": [
       {
-        "matcher": "*",
+        "matcher": "Bash",
         "hooks": [
           {
             "type": "command",
-            "command": "echo \"$(date): Bash command triggered\" >> ~/.claude/bash-simple-log.txt"
+            "command": "jq -r '\"\\(.tool_input.command) - \\(.tool_input.description // \"No description\")\"' >> ~/.claude/bash-command-log.txt"
           }
         ]
       }
