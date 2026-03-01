@@ -1,7 +1,7 @@
 let galleryInjected = false;
 let currentUrl = window.location.href;
 
-// Inject styles for the button
+// Inject styles for the button and toast
 function injectGalleryStyles() {
   if (document.getElementById('dropbox-gallery-styles')) return;
 
@@ -35,12 +35,82 @@ function injectGalleryStyles() {
     background: linear-gradient(135deg, #764ba2 0%, #667eea 100%);
   }
 
+  .gallery-view-btn:disabled {
+    opacity: 0.7;
+    cursor: wait;
+  }
+
   .gallery-view-btn svg {
     width: 20px;
     height: 20px;
   }
+
+  .gallery-view-btn .btn-spinner {
+    width: 16px;
+    height: 16px;
+    border: 2px solid rgba(255,255,255,0.3);
+    border-top-color: white;
+    border-radius: 50%;
+    animation: gallery-btn-spin 0.6s linear infinite;
+  }
+
+  @keyframes gallery-btn-spin {
+    to { transform: rotate(360deg); }
+  }
+
+  .dbx-gallery-toast {
+    position: fixed;
+    bottom: 80px;
+    right: 30px;
+    z-index: 10000;
+    padding: 10px 20px;
+    border-radius: 8px;
+    color: white;
+    font-size: 14px;
+    font-weight: 500;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    opacity: 0;
+    transform: translateY(10px);
+    animation: dbx-toast-in 0.3s ease forwards;
+  }
+
+  .dbx-gallery-toast.toast-error {
+    background: rgba(239, 68, 68, 0.95);
+  }
+
+  .dbx-gallery-toast.toast-info {
+    background: rgba(102, 126, 234, 0.95);
+  }
+
+  .dbx-gallery-toast.toast-out {
+    animation: dbx-toast-out 0.3s ease forwards;
+  }
+
+  @keyframes dbx-toast-in {
+    to { opacity: 1; transform: translateY(0); }
+  }
+
+  @keyframes dbx-toast-out {
+    from { opacity: 1; transform: translateY(0); }
+    to { opacity: 0; transform: translateY(10px); }
+  }
   `;
   document.head.appendChild(style);
+}
+
+function showToast(message, type) {
+  // Remove any existing toast
+  const existing = document.querySelector('.dbx-gallery-toast');
+  if (existing) existing.remove();
+
+  const toast = document.createElement('div');
+  toast.className = `dbx-gallery-toast toast-${type || 'info'}`;
+  toast.textContent = message;
+  document.body.appendChild(toast);
+  setTimeout(() => {
+    toast.classList.add('toast-out');
+    setTimeout(() => toast.remove(), 300);
+  }, 3000);
 }
 
 function detectImageFolder() {
@@ -54,26 +124,18 @@ function extractImages() {
   const images = [];
   const seenUrls = new Set();
 
-  // Function to get better quality image URL
   function getDirectUrl(src) {
     if (src.includes('previews.dropbox.com')) {
-      // For preview URLs, try to get larger size
       let url = src;
-      // Replace size_mode to get larger images
       url = url.replace(/size_mode=\d+/g, 'size_mode=5');
-      // Remove width/height constraints
       url = url.replace(/[?&](w|h)=\d+/g, '');
       return url;
     }
 
-    // For regular dropbox.com URLs
     if (src.includes('dropbox.com')) {
       let url = src;
-      // Remove size parameters
       url = url.replace(/[?&](w|h|size|fit|size_mode)=[^&]*/g, '');
-      // Clean up URL
       url = url.replace(/[?&]+$/, '');
-      // Add raw parameter for direct image access
       if (!url.includes('raw=')) {
         url += (url.includes('?') ? '&' : '?') + 'raw=1';
       }
@@ -83,10 +145,21 @@ function extractImages() {
     return src;
   }
 
+  function isValidImageUrl(url) {
+    try {
+      const parsed = new URL(url);
+      return parsed.protocol === 'https:' && parsed.hostname.includes('dropbox');
+    } catch {
+      return false;
+    }
+  }
+
   // Extract images from thumbnail elements
   const imgElements = document.querySelectorAll('img[src*="dropbox"], img[src*="preview"]');
   imgElements.forEach(img => {
     const fullSrc = getDirectUrl(img.src);
+    if (!isValidImageUrl(fullSrc)) return;
+
     const filename = img.alt || img.title || extractFilename(img.src);
 
     if (!seenUrls.has(fullSrc)) {
@@ -104,6 +177,8 @@ function extractImages() {
   const links = document.querySelectorAll('a[href*=".jpg"], a[href*=".jpeg"], a[href*=".png"], a[href*=".gif"], a[href*=".webp"], a[href*=".JPG"], a[href*=".JPEG"], a[href*=".PNG"]');
   links.forEach(link => {
     const fullSrc = getDirectUrl(link.href);
+    if (!isValidImageUrl(fullSrc)) return;
+
     const filename = link.textContent.trim() || extractFilename(link.href);
 
     if (!seenUrls.has(fullSrc)) {
@@ -122,20 +197,22 @@ function extractImages() {
 
 function extractFilename(url) {
   try {
-    // Try to extract filename from URL
     const path = new URL(url).pathname;
     const filename = path.split('/').pop();
     if (filename && filename.includes('.')) {
       return decodeURIComponent(filename);
     }
   } catch (e) {
-    // Fallback for malformed URLs
+    // Malformed URL - fall through to regex fallback
   }
 
-  // Fallback: extract from the end of the URL
   const match = url.match(/\/([^/]+\.(jpg|jpeg|png|gif|webp))/i);
   if (match) {
-    return decodeURIComponent(match[1]);
+    try {
+      return decodeURIComponent(match[1]);
+    } catch {
+      return match[1];
+    }
   }
 
   return 'Image';
@@ -143,23 +220,26 @@ function extractFilename(url) {
 
 async function openGalleryInNewTab(images, folderName) {
   try {
-    // Store image data in chrome storage for the new tab to access
     await chrome.storage.local.set({
       galleryImages: images,
       folderName: folderName || document.title
     });
 
-    // Open gallery in new tab
     const galleryUrl = chrome.runtime.getURL('gallery.html');
     window.open(galleryUrl, '_blank');
   } catch (error) {
     console.error('Failed to open gallery:', error);
-    alert('Failed to open gallery. Please try again.');
+    if (error.message && error.message.includes('storage')) {
+      showToast('Storage error. Try reinstalling the extension.', 'error');
+    } else {
+      showToast('Failed to open gallery. Please try again.', 'error');
+    }
   }
 }
 
 function injectGalleryButton() {
-  if (galleryInjected) return;
+  // Prevent duplicate buttons
+  if (galleryInjected || document.getElementById('dropbox-gallery-btn')) return;
 
   const toolbar = document.querySelector('[role="toolbar"], .toolbar, .header-actions') ||
                    document.querySelector('header') ||
@@ -178,7 +258,6 @@ function injectGalleryButton() {
   svg.setAttribute("stroke", "currentColor");
   svg.setAttribute("stroke-width", "2");
 
-  // Create rectangles for grid icon
   const rects = [
     { x: "3", y: "3", width: "7", height: "7" },
     { x: "14", y: "3", width: "7", height: "7" },
@@ -201,11 +280,29 @@ function injectGalleryButton() {
   button.appendChild(text);
 
   button.addEventListener('click', async () => {
-    const images = extractImages();
-    if (images.length > 0) {
-      await openGalleryInNewTab(images, document.title);
-    } else {
-      alert('No images found in this folder');
+    // Show loading state
+    button.disabled = true;
+    const originalContent = button.innerHTML;
+    button.innerHTML = '';
+    const spinner = document.createElement('div');
+    spinner.className = 'btn-spinner';
+    button.appendChild(spinner);
+    const loadingText = document.createTextNode(' Opening...');
+    button.appendChild(loadingText);
+
+    try {
+      const images = extractImages();
+      if (images.length > 0) {
+        await openGalleryInNewTab(images, document.title);
+      } else {
+        showToast('No images found in this folder', 'error');
+      }
+    } finally {
+      // Restore button after short delay
+      setTimeout(() => {
+        button.innerHTML = originalContent;
+        button.disabled = false;
+      }, 1000);
     }
   });
 

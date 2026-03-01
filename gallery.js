@@ -4,16 +4,18 @@ class DropboxGallery {
         this.currentIndex = 0;
         this.favorites = new Set();
         this.isZoomed = false;
+        this.helpVisible = false;
+        this.touchStartX = 0;
+        this.touchStartY = 0;
         this.loadData();
     }
 
     async loadData() {
         try {
-            // Load images from chrome storage
             const result = await chrome.storage.local.get(['galleryImages', 'folderName', 'favorites']);
 
             if (!result.galleryImages || result.galleryImages.length === 0) {
-                this.showError('No images found');
+                this.showError('No images found', 'Navigate to a Dropbox folder containing images and try again.');
                 return;
             }
 
@@ -22,7 +24,6 @@ class DropboxGallery {
                 this.favorites = new Set(result.favorites);
             }
 
-            // Update page title
             if (result.folderName) {
                 document.title = `Gallery - ${result.folderName}`;
             }
@@ -32,7 +33,11 @@ class DropboxGallery {
             this.bindEvents();
         } catch (error) {
             console.error('Failed to load gallery data:', error);
-            this.showError('Failed to load gallery data');
+            if (error.message && error.message.includes('storage')) {
+                this.showError('Storage access denied', 'The extension needs storage permission. Try reinstalling the extension.');
+            } else {
+                this.showError('Failed to load gallery', 'An unexpected error occurred. Try reopening the gallery.');
+            }
         }
     }
 
@@ -40,19 +45,37 @@ class DropboxGallery {
         document.getElementById('loading').style.display = 'none';
     }
 
-    showError(message) {
+    showError(message, detail) {
         document.getElementById('loading').style.display = 'none';
         const errorEl = document.getElementById('error');
-        errorEl.textContent = message;
-        errorEl.style.display = 'block';
+        document.getElementById('error-message').textContent = message;
+        const detailEl = document.getElementById('error-detail');
+        if (detail) {
+            detailEl.textContent = detail;
+        }
+        errorEl.style.display = 'flex';
+    }
+
+    showToast(message, type) {
+        const container = document.getElementById('toast-container');
+        const toast = document.createElement('div');
+        toast.className = `toast toast-${type || 'info'}`;
+        toast.textContent = message;
+        container.appendChild(toast);
+        setTimeout(() => {
+            toast.classList.add('toast-out');
+            setTimeout(() => toast.remove(), 300);
+        }, 2500);
     }
 
     render() {
-        // Show all elements
         document.getElementById('gallery-close-btn').style.display = 'block';
         document.querySelector('.gallery-top-controls').style.display = 'flex';
         document.getElementById('gallery-image-container').style.display = 'flex';
         document.getElementById('gallery-bottom-info').style.display = 'flex';
+        // Always show nav buttons (they disable at boundaries)
+        document.getElementById('gallery-prev-btn').style.display = 'block';
+        document.getElementById('gallery-next-btn').style.display = 'block';
 
         this.updateImage();
     }
@@ -64,32 +87,82 @@ class DropboxGallery {
         const img = document.getElementById('gallery-main-image');
         const info = document.getElementById('gallery-image-info');
         const dots = document.getElementById('gallery-dots');
+        const errorEl = document.getElementById('gallery-image-error');
+        const loadingEl = document.getElementById('image-loading');
+
+        // Reset zoom
+        this.isZoomed = false;
+        img.classList.remove('zoomed');
+        this.updateZoomIndicator();
+
+        // Show image loading state
+        img.classList.add('loading-img');
+        loadingEl.classList.add('visible');
+        errorEl.style.display = 'none';
+        img.style.display = 'block';
 
         img.src = currentImage.full;
         img.alt = currentImage.name;
-        this.isZoomed = false;
-        img.classList.remove('zoomed');
 
         if (info) {
-            info.textContent = `${currentImage.name} • ${this.currentIndex + 1} / ${this.images.length}`;
+            info.textContent = `${currentImage.name} \u2022 ${this.currentIndex + 1} / ${this.images.length}`;
         }
 
-        // Update dots
+        // Update dots (limit to prevent perf issues with 1000+ images)
         if (dots) {
             dots.innerHTML = '';
-            this.images.forEach((_, i) => {
-                const dot = document.createElement('button');
-                dot.className = `gallery-dot ${i === this.currentIndex ? 'active' : ''}`;
-                dot.addEventListener('click', () => {
-                    this.currentIndex = i;
-                    this.updateImage();
+            const maxDots = 100;
+            if (this.images.length <= maxDots) {
+                this.images.forEach((_, i) => {
+                    const dot = document.createElement('button');
+                    dot.className = `gallery-dot ${i === this.currentIndex ? 'active' : ''}`;
+                    dot.setAttribute('role', 'tab');
+                    dot.setAttribute('aria-label', `Image ${i + 1} of ${this.images.length}`);
+                    dot.setAttribute('aria-selected', i === this.currentIndex ? 'true' : 'false');
+                    dot.setAttribute('tabindex', i === this.currentIndex ? '0' : '-1');
+                    dot.addEventListener('click', () => {
+                        this.currentIndex = i;
+                        this.updateImage();
+                    });
+                    dots.appendChild(dot);
                 });
-                dots.appendChild(dot);
-            });
+            }
         }
 
         this.updateFavoriteButton();
         this.updateNavigationButtons();
+    }
+
+    handleImageLoad() {
+        const img = document.getElementById('gallery-main-image');
+        const loadingEl = document.getElementById('image-loading');
+        img.classList.remove('loading-img');
+        loadingEl.classList.remove('visible');
+    }
+
+    handleImageError() {
+        const img = document.getElementById('gallery-main-image');
+        const loadingEl = document.getElementById('image-loading');
+        const errorEl = document.getElementById('gallery-image-error');
+        img.classList.remove('loading-img');
+        loadingEl.classList.remove('visible');
+        img.style.display = 'none';
+        errorEl.style.display = 'flex';
+    }
+
+    retryImage() {
+        const currentImage = this.images[this.currentIndex];
+        if (!currentImage) return;
+        const img = document.getElementById('gallery-main-image');
+        const errorEl = document.getElementById('gallery-image-error');
+        const loadingEl = document.getElementById('image-loading');
+        errorEl.style.display = 'none';
+        img.style.display = 'block';
+        img.classList.add('loading-img');
+        loadingEl.classList.add('visible');
+        // Force reload by appending cache-bust
+        const sep = currentImage.full.includes('?') ? '&' : '?';
+        img.src = currentImage.full + sep + '_t=' + Date.now();
     }
 
     updateFavoriteButton() {
@@ -101,9 +174,11 @@ class DropboxGallery {
             if (isFavorite) {
                 svg.setAttribute('fill', 'currentColor');
                 svg.style.color = '#ef4444';
+                btn.setAttribute('aria-label', 'Remove from favorites');
             } else {
                 svg.setAttribute('fill', 'none');
                 svg.style.color = 'white';
+                btn.setAttribute('aria-label', 'Add to favorites');
             }
         }
     }
@@ -113,10 +188,17 @@ class DropboxGallery {
         const nextBtn = document.getElementById('gallery-next-btn');
 
         if (prevBtn) {
-            prevBtn.style.display = this.currentIndex > 0 ? 'block' : 'none';
+            prevBtn.disabled = this.currentIndex <= 0;
         }
         if (nextBtn) {
-            nextBtn.style.display = this.currentIndex < this.images.length - 1 ? 'block' : 'none';
+            nextBtn.disabled = this.currentIndex >= this.images.length - 1;
+        }
+    }
+
+    updateZoomIndicator() {
+        const indicator = document.getElementById('zoom-indicator');
+        if (indicator) {
+            indicator.classList.toggle('visible', this.isZoomed);
         }
     }
 
@@ -135,8 +217,10 @@ class DropboxGallery {
 
         if (this.favorites.has(currentImage.id)) {
             this.favorites.delete(currentImage.id);
+            this.showToast('Removed from favorites', 'info');
         } else {
             this.favorites.add(currentImage.id);
+            this.showToast('Added to favorites', 'info');
         }
 
         this.saveFavorites();
@@ -155,6 +239,7 @@ class DropboxGallery {
         const img = document.getElementById('gallery-main-image');
         this.isZoomed = !this.isZoomed;
         img.classList.toggle('zoomed', this.isZoomed);
+        this.updateZoomIndicator();
     }
 
     async toggleFullscreen() {
@@ -165,9 +250,14 @@ class DropboxGallery {
                 await document.exitFullscreen();
             }
         } catch (err) {
-            // Fallback: tell user to use F11
-            alert('Use F11 to enter fullscreen mode');
+            this.showToast('Press F11 to enter fullscreen mode', 'info');
         }
+    }
+
+    toggleHelp() {
+        const modal = document.getElementById('help-modal');
+        this.helpVisible = !this.helpVisible;
+        modal.classList.toggle('visible', this.helpVisible);
     }
 
     close() {
@@ -175,6 +265,14 @@ class DropboxGallery {
     }
 
     handleKeydown(e) {
+        // Help modal takes priority
+        if (this.helpVisible) {
+            if (e.key === 'Escape' || e.key === '?') {
+                this.toggleHelp();
+            }
+            return;
+        }
+
         switch (e.key) {
             case 'Escape':
                 if (document.fullscreenElement) {
@@ -197,9 +295,30 @@ class DropboxGallery {
             case 'F':
                 this.toggleFullscreen();
                 break;
-            case 'F11':
-                // Browser handles this natively
+            case '?':
+                this.toggleHelp();
                 break;
+        }
+    }
+
+    handleTouchStart(e) {
+        this.touchStartX = e.touches[0].clientX;
+        this.touchStartY = e.touches[0].clientY;
+    }
+
+    handleTouchEnd(e) {
+        if (!e.changedTouches.length) return;
+        const dx = e.changedTouches[0].clientX - this.touchStartX;
+        const dy = e.changedTouches[0].clientY - this.touchStartY;
+        const minSwipe = 50;
+
+        // Only trigger if horizontal swipe is dominant
+        if (Math.abs(dx) > minSwipe && Math.abs(dx) > Math.abs(dy) * 1.5) {
+            if (dx > 0) {
+                this.navigate('prev');
+            } else {
+                this.navigate('next');
+            }
         }
     }
 
@@ -211,11 +330,26 @@ class DropboxGallery {
         document.getElementById('gallery-close-btn').addEventListener('click', () => this.close());
         document.getElementById('gallery-favorite-btn').addEventListener('click', () => this.toggleFavorite());
         document.getElementById('gallery-fullscreen-btn').addEventListener('click', () => this.toggleFullscreen());
+        document.getElementById('gallery-help-btn').addEventListener('click', () => this.toggleHelp());
         document.getElementById('gallery-prev-btn').addEventListener('click', () => this.navigate('prev'));
         document.getElementById('gallery-next-btn').addEventListener('click', () => this.navigate('next'));
+        document.getElementById('gallery-retry-btn').addEventListener('click', () => this.retryImage());
 
-        // Image click to zoom
-        document.getElementById('gallery-main-image').addEventListener('click', () => this.toggleZoom());
+        // Image events
+        const img = document.getElementById('gallery-main-image');
+        img.addEventListener('click', () => this.toggleZoom());
+        img.addEventListener('load', () => this.handleImageLoad());
+        img.addEventListener('error', () => this.handleImageError());
+
+        // Touch/swipe events
+        const container = document.getElementById('gallery-image-container');
+        container.addEventListener('touchstart', (e) => this.handleTouchStart(e), { passive: true });
+        container.addEventListener('touchend', (e) => this.handleTouchEnd(e), { passive: true });
+
+        // Help modal backdrop click
+        document.getElementById('help-modal').addEventListener('click', (e) => {
+            if (e.target === e.currentTarget) this.toggleHelp();
+        });
     }
 }
 
