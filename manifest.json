@@ -8,7 +8,9 @@
     "activeTab"
   ],
   "host_permissions": [
-    "https://www.dropbox.com/*"
+    "https://www.dropbox.com/*",
+    "https://*.dropbox.com/*",
+    "https://*.dropboxusercontent.com/*"
   ],
   "action": {
     "default_popup": "index.html",
@@ -22,7 +24,7 @@
   "content_scripts": [
     {
       "matches": ["https://www.dropbox.com/*"],
-      "js": ["src/content/content.js"],
+      "js": ["src/content/content.js", "src/content/gallery-overlay.js"],
       "run_at": "document_idle"
     }
   ],

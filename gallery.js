@@ -7,6 +7,7 @@ class DropboxGallery {
         this.helpVisible = false;
         this.touchStartX = 0;
         this.touchStartY = 0;
+        this.blobCache = {};
         this.loadData();
     }
 
@@ -68,19 +69,43 @@ class DropboxGallery {
         }, 2500);
     }
 
+    // Fetch image via fetch() with credentials to get Dropbox cookies,
+    // then convert to a blob URL that works on the extension page.
+    async fetchImageAsBlob(url) {
+        if (this.blobCache[url]) return this.blobCache[url];
+
+        // Data URLs already work directly
+        if (url.startsWith('data:')) {
+            this.blobCache[url] = url;
+            return url;
+        }
+
+        try {
+            const resp = await fetch(url, { credentials: 'include' });
+            if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+            const blob = await resp.blob();
+            const blobUrl = URL.createObjectURL(blob);
+            this.blobCache[url] = blobUrl;
+            return blobUrl;
+        } catch (err) {
+            console.warn('Failed to fetch image:', url, err);
+            // Return original URL as last resort
+            return url;
+        }
+    }
+
     render() {
         document.getElementById('gallery-close-btn').style.display = 'block';
         document.querySelector('.gallery-top-controls').style.display = 'flex';
         document.getElementById('gallery-image-container').style.display = 'flex';
         document.getElementById('gallery-bottom-info').style.display = 'flex';
-        // Always show nav buttons (they disable at boundaries)
         document.getElementById('gallery-prev-btn').style.display = 'block';
         document.getElementById('gallery-next-btn').style.display = 'block';
 
         this.updateImage();
     }
 
-    updateImage() {
+    async updateImage() {
         if (!this.images[this.currentIndex]) return;
 
         const currentImage = this.images[this.currentIndex];
@@ -101,7 +126,9 @@ class DropboxGallery {
         errorEl.style.display = 'none';
         img.style.display = 'block';
 
-        img.src = currentImage.full;
+        // Fetch image as blob to bypass cookie/CORS issues
+        const blobUrl = await this.fetchImageAsBlob(currentImage.full);
+        img.src = blobUrl;
         img.alt = currentImage.name;
 
         if (info) {
@@ -150,19 +177,12 @@ class DropboxGallery {
         errorEl.style.display = 'flex';
     }
 
-    retryImage() {
+    async retryImage() {
         const currentImage = this.images[this.currentIndex];
         if (!currentImage) return;
-        const img = document.getElementById('gallery-main-image');
-        const errorEl = document.getElementById('gallery-image-error');
-        const loadingEl = document.getElementById('image-loading');
-        errorEl.style.display = 'none';
-        img.style.display = 'block';
-        img.classList.add('loading-img');
-        loadingEl.classList.add('visible');
-        // Force reload by appending cache-bust
-        const sep = currentImage.full.includes('?') ? '&' : '?';
-        img.src = currentImage.full + sep + '_t=' + Date.now();
+        // Clear cache for this URL so it re-fetches
+        delete this.blobCache[currentImage.full];
+        await this.updateImage();
     }
 
     updateFavoriteButton() {
@@ -261,11 +281,14 @@ class DropboxGallery {
     }
 
     close() {
+        // Clean up blob URLs
+        Object.values(this.blobCache).forEach(url => {
+            if (url.startsWith('blob:')) URL.revokeObjectURL(url);
+        });
         window.close();
     }
 
     handleKeydown(e) {
-        // Help modal takes priority
         if (this.helpVisible) {
             if (e.key === 'Escape' || e.key === '?') {
                 this.toggleHelp();
@@ -312,7 +335,6 @@ class DropboxGallery {
         const dy = e.changedTouches[0].clientY - this.touchStartY;
         const minSwipe = 50;
 
-        // Only trigger if horizontal swipe is dominant
         if (Math.abs(dx) > minSwipe && Math.abs(dx) > Math.abs(dy) * 1.5) {
             if (dx > 0) {
                 this.navigate('prev');
@@ -323,10 +345,8 @@ class DropboxGallery {
     }
 
     bindEvents() {
-        // Keyboard events
         document.addEventListener('keydown', (e) => this.handleKeydown(e));
 
-        // Button events
         document.getElementById('gallery-close-btn').addEventListener('click', () => this.close());
         document.getElementById('gallery-favorite-btn').addEventListener('click', () => this.toggleFavorite());
         document.getElementById('gallery-fullscreen-btn').addEventListener('click', () => this.toggleFullscreen());
@@ -335,25 +355,21 @@ class DropboxGallery {
         document.getElementById('gallery-next-btn').addEventListener('click', () => this.navigate('next'));
         document.getElementById('gallery-retry-btn').addEventListener('click', () => this.retryImage());
 
-        // Image events
         const img = document.getElementById('gallery-main-image');
         img.addEventListener('click', () => this.toggleZoom());
         img.addEventListener('load', () => this.handleImageLoad());
         img.addEventListener('error', () => this.handleImageError());
 
-        // Touch/swipe events
         const container = document.getElementById('gallery-image-container');
         container.addEventListener('touchstart', (e) => this.handleTouchStart(e), { passive: true });
         container.addEventListener('touchend', (e) => this.handleTouchEnd(e), { passive: true });
 
-        // Help modal backdrop click
         document.getElementById('help-modal').addEventListener('click', (e) => {
             if (e.target === e.currentTarget) this.toggleHelp();
         });
     }
 }
 
-// Initialize gallery when page loads
 document.addEventListener('DOMContentLoaded', () => {
     new DropboxGallery();
 });

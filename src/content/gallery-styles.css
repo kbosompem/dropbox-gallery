@@ -11,6 +11,7 @@
   align-items: center !important;
   justify-content: center !important;
   animation: galleryFadeIn 0.3s ease-out !important;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif !important;
 }
 
 .gallery-backdrop {
@@ -33,11 +34,17 @@
   cursor: pointer !important;
   transition: all 0.3s ease !important;
   z-index: 10 !important;
+  line-height: 0 !important;
 }
 
 .gallery-control-btn:hover {
   background: rgba(255, 255, 255, 0.2) !important;
   transform: scale(1.1) !important;
+}
+
+.gallery-control-btn:focus-visible {
+  outline: 2px solid #667eea !important;
+  outline-offset: 2px !important;
 }
 
 .gallery-close {
@@ -54,6 +61,10 @@
   z-index: 10 !important;
 }
 
+.gallery-top-controls .gallery-control-btn {
+  position: relative !important;
+}
+
 .gallery-nav-btn {
   position: absolute !important;
   top: 50% !important;
@@ -67,11 +78,22 @@
   cursor: pointer !important;
   transition: all 0.3s ease !important;
   z-index: 10 !important;
+  line-height: 0 !important;
 }
 
-.gallery-nav-btn:hover {
+.gallery-nav-btn:hover:not(:disabled) {
   background: rgba(255, 255, 255, 0.2) !important;
   transform: translateY(-50%) scale(1.1) !important;
+}
+
+.gallery-nav-btn:disabled {
+  opacity: 0.3 !important;
+  cursor: default !important;
+}
+
+.gallery-nav-btn:focus-visible {
+  outline: 2px solid #667eea !important;
+  outline-offset: 2px !important;
 }
 
 .gallery-prev {
@@ -88,16 +110,104 @@
   display: flex !important;
   align-items: center !important;
   justify-content: center !important;
+  position: relative !important;
 }
 
 .gallery-main-image {
   max-width: 100% !important;
-  max-height: 100% !important;
+  max-height: 85vh !important;
   object-fit: contain !important;
   border-radius: 8px !important;
   box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5) !important;
   cursor: zoom-in !important;
   transition: all 0.3s ease !important;
+}
+
+.gallery-main-image.gallery-zoomed {
+  cursor: zoom-out !important;
+  transform: scale(1.5) !important;
+}
+
+.gallery-main-image.gallery-loading-img {
+  opacity: 0.3 !important;
+}
+
+/* Image loading spinner overlay */
+.gallery-image-loading-overlay {
+  position: absolute !important;
+  inset: 0 !important;
+  display: none !important;
+  align-items: center !important;
+  justify-content: center !important;
+  pointer-events: none !important;
+}
+
+.gallery-image-loading-overlay.visible {
+  display: flex !important;
+}
+
+.gallery-loading-spinner {
+  width: 40px !important;
+  height: 40px !important;
+  border: 3px solid rgba(255, 255, 255, 0.2) !important;
+  border-top-color: white !important;
+  border-radius: 50% !important;
+  animation: gallerySpinAnim 0.8s linear infinite !important;
+}
+
+/* Image error state */
+.gallery-image-error {
+  display: none;
+  flex-direction: column !important;
+  align-items: center !important;
+  gap: 16px !important;
+  color: rgba(255, 255, 255, 0.6) !important;
+  padding: 40px !important;
+}
+
+.gallery-image-error svg {
+  opacity: 0.5 !important;
+}
+
+.gallery-image-error p {
+  font-size: 16px !important;
+  color: rgba(255, 255, 255, 0.6) !important;
+}
+
+.gallery-retry-btn {
+  padding: 8px 20px !important;
+  border-radius: 8px !important;
+  background: rgba(255, 255, 255, 0.15) !important;
+  border: 1px solid rgba(255, 255, 255, 0.2) !important;
+  color: white !important;
+  cursor: pointer !important;
+  font-size: 14px !important;
+  transition: background 0.2s !important;
+  font-family: inherit !important;
+}
+
+.gallery-retry-btn:hover {
+  background: rgba(255, 255, 255, 0.25) !important;
+}
+
+/* Zoom indicator badge */
+.gallery-zoom-indicator {
+  position: absolute !important;
+  top: 10px !important;
+  right: 10px !important;
+  background: rgba(0, 0, 0, 0.7) !important;
+  color: white !important;
+  padding: 4px 10px !important;
+  border-radius: 12px !important;
+  font-size: 12px !important;
+  font-weight: 500 !important;
+  opacity: 0 !important;
+  transition: opacity 0.2s !important;
+  pointer-events: none !important;
+}
+
+.gallery-zoom-indicator.visible {
+  opacity: 1 !important;
 }
 
 .gallery-bottom-info {
@@ -128,10 +238,16 @@
   cursor: pointer !important;
   transition: all 0.3s ease !important;
   flex-shrink: 0 !important;
+  padding: 0 !important;
 }
 
 .gallery-dot:hover {
   background: rgba(255, 255, 255, 0.6) !important;
+}
+
+.gallery-dot:focus-visible {
+  outline: 2px solid #667eea !important;
+  outline-offset: 2px !important;
 }
 
 .gallery-dot.active {
@@ -146,20 +262,154 @@
   padding: 8px 16px !important;
   border-radius: 20px !important;
   color: white !important;
-  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif !important;
   font-size: 14px !important;
   font-weight: 500 !important;
   white-space: nowrap !important;
 }
 
+.gallery-info-text p {
+  margin: 0 !important;
+  color: white !important;
+}
+
+/* Toast notifications */
+.gallery-toast-container {
+  position: absolute !important;
+  top: 20px !important;
+  left: 50% !important;
+  transform: translateX(-50%) !important;
+  z-index: 20 !important;
+  display: flex !important;
+  flex-direction: column !important;
+  gap: 8px !important;
+  pointer-events: none !important;
+}
+
+.gallery-toast {
+  padding: 10px 20px !important;
+  border-radius: 8px !important;
+  color: white !important;
+  font-size: 14px !important;
+  font-weight: 500 !important;
+  backdrop-filter: blur(10px) !important;
+  opacity: 0 !important;
+  transform: translateY(-10px) !important;
+  animation: galleryToastIn 0.3s ease forwards !important;
+  pointer-events: auto !important;
+}
+
+.gallery-toast-info {
+  background: rgba(102, 126, 234, 0.9) !important;
+}
+
+.gallery-toast-error {
+  background: rgba(239, 68, 68, 0.9) !important;
+}
+
+.gallery-toast-out {
+  animation: galleryToastOut 0.3s ease forwards !important;
+}
+
+/* Help modal */
+.gallery-help-modal-overlay {
+  position: absolute !important;
+  inset: 0 !important;
+  background: rgba(0, 0, 0, 0.8) !important;
+  display: none !important;
+  align-items: center !important;
+  justify-content: center !important;
+  z-index: 30 !important;
+}
+
+.gallery-help-modal-overlay.visible {
+  display: flex !important;
+}
+
+.gallery-help-modal {
+  background: #1a1a2e !important;
+  border: 1px solid rgba(255, 255, 255, 0.15) !important;
+  border-radius: 16px !important;
+  padding: 32px !important;
+  max-width: 420px !important;
+  width: 90vw !important;
+  color: white !important;
+}
+
+.gallery-help-modal h2 {
+  font-size: 20px !important;
+  font-weight: 600 !important;
+  margin-bottom: 20px !important;
+  color: white !important;
+}
+
+.gallery-help-row {
+  display: flex !important;
+  justify-content: space-between !important;
+  align-items: center !important;
+  padding: 8px 0 !important;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08) !important;
+}
+
+.gallery-help-row:last-of-type {
+  border-bottom: none !important;
+}
+
+.gallery-help-key {
+  display: inline-block !important;
+  background: rgba(255, 255, 255, 0.12) !important;
+  border: 1px solid rgba(255, 255, 255, 0.2) !important;
+  border-radius: 6px !important;
+  padding: 3px 10px !important;
+  font-size: 13px !important;
+  font-family: monospace !important;
+  min-width: 32px !important;
+  text-align: center !important;
+  color: white !important;
+}
+
+.gallery-help-desc {
+  color: rgba(255, 255, 255, 0.7) !important;
+  font-size: 14px !important;
+}
+
+.gallery-help-close-hint {
+  text-align: center !important;
+  margin-top: 16px !important;
+  color: rgba(255, 255, 255, 0.4) !important;
+  font-size: 13px !important;
+}
+
+/* Animations */
 @keyframes galleryFadeIn {
   from {
-    opacity: 0 !important;
-    transform: scale(0.9) !important;
+    opacity: 0;
   }
   to {
-    opacity: 1 !important;
-    transform: scale(1) !important;
+    opacity: 1;
+  }
+}
+
+@keyframes gallerySpinAnim {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@keyframes galleryToastIn {
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes galleryToastOut {
+  from {
+    opacity: 1;
+    transform: translateY(0);
+  }
+  to {
+    opacity: 0;
+    transform: translateY(-10px);
   }
 }
 
@@ -168,9 +418,8 @@
   background: rgba(0, 0, 0, 1) !important;
 }
 
-#dropbox-gallery-overlay:fullscreen .gallery-image-container {
-  max-width: 100vw !important;
-  max-height: 100vh !important;
+#dropbox-gallery-overlay:fullscreen .gallery-main-image {
+  max-height: 95vh !important;
 }
 
 /* Scrollbar styling for dots */

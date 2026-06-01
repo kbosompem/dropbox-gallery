@@ -114,82 +114,79 @@ function showToast(message, type) {
 }
 
 function detectImageFolder() {
-  const images = document.querySelectorAll('img[src*="thumbnails"], img[src*="dropbox.com"]');
-  const fileLinks = document.querySelectorAll('a[href*=".jpg"], a[href*=".jpeg"], a[href*=".png"], a[href*=".gif"], a[href*=".webp"]');
+  // Check for Dropbox content thumbnails (from previews.dropbox.com etc)
+  const thumbnails = document.querySelectorAll('img[src*="previews.dropbox"], img[src*="dropboxusercontent"]');
+  if (thumbnails.length > 2) return true;
 
-  return images.length > 2 || fileLinks.length > 2;
+  // Also check for image file links
+  const imageLinks = document.querySelectorAll(
+    'a[href*=".jpg"], a[href*=".jpeg"], a[href*=".png"], a[href*=".gif"], a[href*=".webp"]'
+  );
+  return imageLinks.length > 2;
 }
 
 function extractImages() {
   const images = [];
-  const seenUrls = new Set();
+  const seenNames = new Set();
+  const imageExtPattern = /\.(jpg|jpeg|png|gif|webp)$/i;
 
-  function getDirectUrl(src) {
-    if (src.includes('previews.dropbox.com')) {
-      let url = src;
-      url = url.replace(/size_mode=\d+/g, 'size_mode=5');
-      url = url.replace(/[?&](w|h)=\d+/g, '');
-      return url;
-    }
+  // Strategy: find all <a> links to image files in the file list,
+  // then find the associated thumbnail <img> for each.
+  // The <a> gives us the filename and file path.
+  // The <img> gives us a working thumbnail URL.
+  const allLinks = document.querySelectorAll('a[href]');
 
-    if (src.includes('dropbox.com')) {
-      let url = src;
-      url = url.replace(/[?&](w|h|size|fit|size_mode)=[^&]*/g, '');
-      url = url.replace(/[?&]+$/, '');
-      if (!url.includes('raw=')) {
-        url += (url.includes('?') ? '&' : '?') + 'raw=1';
+  allLinks.forEach(link => {
+    const href = link.href || '';
+    if (!href) return;
+
+    // Must be a Dropbox link to an image file
+    let urlObj;
+    try { urlObj = new URL(href); } catch { return; }
+    if (urlObj.hostname !== 'www.dropbox.com') return;
+
+    // Extract filename from the link text or href path
+    const linkText = link.textContent.trim();
+    const pathFilename = decodeURIComponent(urlObj.pathname.split('/').pop() || '');
+
+    // The filename must have an image extension
+    const filename = (imageExtPattern.test(linkText) ? linkText : null)
+                  || (imageExtPattern.test(pathFilename) ? pathFilename : null);
+    if (!filename) return;
+
+    // Dedup by filename
+    const nameKey = filename.toLowerCase();
+    if (seenNames.has(nameKey)) return;
+
+    // Find the thumbnail <img> associated with this link.
+    // Walk up to the file row, then find the preview thumbnail inside it.
+    const row = link.closest('tr, li, [role="listitem"], [role="row"], [role="option"]')
+                || link.closest('[class*="file"], [class*="item"]')
+                || link.parentElement?.parentElement;
+    if (!row) return;
+
+    // Look for a thumbnail image from previews.dropbox.com in this row
+    let thumbnailUrl = '';
+    const imgs = row.querySelectorAll('img');
+    for (const img of imgs) {
+      const src = img.src || '';
+      if (src.includes('previews.dropbox.com') || src.includes('dropboxusercontent.com')) {
+        thumbnailUrl = src;
+        break;
       }
-      return url;
     }
 
-    return src;
-  }
+    // The file path from the link (e.g. /home/Camera%20Uploads/file.jpg or /preview/file.jpg)
+    const filePath = urlObj.pathname;
 
-  function isValidImageUrl(url) {
-    try {
-      const parsed = new URL(url);
-      return parsed.protocol === 'https:' && parsed.hostname.includes('dropbox');
-    } catch {
-      return false;
-    }
-  }
-
-  // Extract images from thumbnail elements
-  const imgElements = document.querySelectorAll('img[src*="dropbox"], img[src*="preview"]');
-  imgElements.forEach(img => {
-    const fullSrc = getDirectUrl(img.src);
-    if (!isValidImageUrl(fullSrc)) return;
-
-    const filename = img.alt || img.title || extractFilename(img.src);
-
-    if (!seenUrls.has(fullSrc)) {
-      seenUrls.add(fullSrc);
-      images.push({
-        thumbnail: img.src,
-        full: fullSrc,
-        name: filename,
-        id: btoa(fullSrc + filename).replace(/[+=\/]/g, '').substring(0, 16)
-      });
-    }
-  });
-
-  // Extract from direct image links
-  const links = document.querySelectorAll('a[href*=".jpg"], a[href*=".jpeg"], a[href*=".png"], a[href*=".gif"], a[href*=".webp"], a[href*=".JPG"], a[href*=".JPEG"], a[href*=".PNG"]');
-  links.forEach(link => {
-    const fullSrc = getDirectUrl(link.href);
-    if (!isValidImageUrl(fullSrc)) return;
-
-    const filename = link.textContent.trim() || extractFilename(link.href);
-
-    if (!seenUrls.has(fullSrc)) {
-      seenUrls.add(fullSrc);
-      images.push({
-        thumbnail: fullSrc,
-        full: fullSrc,
-        name: filename,
-        id: btoa(fullSrc + filename).replace(/[+=\/]/g, '').substring(0, 16)
-      });
-    }
+    seenNames.add(nameKey);
+    images.push({
+      thumbnail: thumbnailUrl,
+      full: thumbnailUrl, // will be upgraded to high-res by the overlay via fetch
+      filePath: filePath,
+      name: filename,
+      id: btoa(filename).replace(/[+=\/]/g, '').substring(0, 16)
+    });
   });
 
   return images;
@@ -218,22 +215,34 @@ function extractFilename(url) {
   return 'Image';
 }
 
-async function openGalleryInNewTab(images, folderName) {
-  try {
-    await chrome.storage.local.set({
-      galleryImages: images,
-      folderName: folderName || document.title
+function logExtractedImages(images) {
+  console.log('[Gallery] Extracted', images.length, 'images:');
+  images.slice(0, 3).forEach((img, i) => {
+    console.log('[Gallery]', i, {
+      name: img.name,
+      filePath: img.filePath,
+      thumbnail: img.thumbnail?.substring(0, 120),
+      full: img.full?.substring(0, 120)
     });
+  });
+}
 
-    const galleryUrl = chrome.runtime.getURL('gallery.html');
-    window.open(galleryUrl, '_blank');
-  } catch (error) {
-    console.error('Failed to open gallery:', error);
-    if (error.message && error.message.includes('storage')) {
-      showToast('Storage error. Try reinstalling the extension.', 'error');
-    } else {
-      showToast('Failed to open gallery. Please try again.', 'error');
-    }
+function openGalleryOverlay(images) {
+  // Also store in chrome.storage for the popup to access
+  try {
+    chrome.storage.local.set({
+      galleryImages: images,
+      folderName: document.title,
+      currentFolder: window.location.href
+    });
+  } catch (e) {
+    // Non-critical - popup just won't have data
+  }
+
+  if (window.dropboxGallery) {
+    window.dropboxGallery.show(images);
+  } else {
+    showToast('Gallery failed to initialize. Try reloading the page.', 'error');
   }
 }
 
@@ -292,8 +301,9 @@ function injectGalleryButton() {
 
     try {
       const images = extractImages();
+      logExtractedImages(images);
       if (images.length > 0) {
-        await openGalleryInNewTab(images, document.title);
+        openGalleryOverlay(images);
       } else {
         showToast('No images found in this folder', 'error');
       }
